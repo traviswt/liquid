@@ -144,3 +144,11 @@ func (e *Engine) ParseTemplateAndCache(source []byte, path string, line int) (*T
 	e.cfg.Cache[path] = source
 	return t, err
 }
+
+func (e *Engine) ListFilters() []string {
+	return e.cfg.ListFilters()
+}
+
+func (e *Engine) ListTags() []string {
+	return e.cfg.ListTags()
+}

@@ -3,6 +3,7 @@ package liquid
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/davecgh/go-spew/spew"
 	"io"
 	"strconv"
 	"strings"
@@ -154,4 +155,14 @@ func TestEngine_ParseTemplateAndCache(t *testing.T) {
 	result, err := eng.ParseAndRender(templateB, Bindings{})
 	require.NoError(t, err)
 	require.Equal(t, "Foo, Bar", string(result))
+}
+
+func TestEngine_ListFilters(t *testing.T) {
+	eng := NewEngine()
+	spew.Dump(eng.ListFilters())
+}
+
+func TestEngine_ListTags(t *testing.T) {
+	eng := NewEngine()
+	spew.Dump(eng.ListTags())
 }

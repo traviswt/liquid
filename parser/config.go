@@ -13,3 +13,7 @@ type Config struct {
 func NewConfig(g Grammar) Config {
 	return Config{Grammar: g}
 }
+
+func (c Config) ListFilters() []string {
+	return c.Config.ListFilters()
+}

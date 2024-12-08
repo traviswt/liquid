@@ -2,6 +2,7 @@ package render
 
 import (
 	"github.com/osteele/liquid/parser"
+	"sort"
 )
 
 // Config holds configuration information for parsing and rendering.
@@ -24,4 +25,17 @@ func NewConfig() Config {
 		blockDefs: map[string]*blockSyntax{},
 	}
 	return Config{Config: parser.NewConfig(g), grammar: g, Cache: map[string][]byte{}}
+}
+
+func (c Config) ListFilters() []string {
+	return c.Config.ListFilters()
+}
+
+func (c Config) ListTags() []string {
+	var l []string
+	for k := range c.tags {
+		l = append(l, k)
+	}
+	sort.Strings(l)
+	return l
 }
