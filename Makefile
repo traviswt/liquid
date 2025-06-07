@@ -8,20 +8,25 @@ LDFLAGS=
 .DEFAULT_GOAL: ci
 .PHONY: ci clean coverage deps generate imports install lint pre-commit setup test help
 
+build: clean tidy format vet test
+
 clean: ## remove binary files
 	rm -f ${LIB} ${CMD}
 
 coverage: ## test the package, with coverage
-	go test -cov ./...
+	@go test -cov ./...
 
 deps: ## list dependencies
 	@go list -f '{{join .Deps "\n"}}' ./... | grep -v `go list -f '{{.ImportPath}}'` | grep '\.' | sort | uniq
 
 format: ## format files
-	@go fmt ./...
+	go fmt ./...
 
 vet: ## vet files
-	@go vet ./...
+	go vet ./...
+
+tidy: ## tidy modules
+	go mod tidy
 
 generate: ## re-generate lexers and parser
 	go generate ./...

@@ -17,6 +17,7 @@ type Engine struct{ cfg render.Config }
 func NewEngine() *Engine {
 	e := Engine{render.NewConfig()}
 	filters.AddStandardFilters(&e.cfg)
+	filters.AddExtensionFilters(&e.cfg)
 	tags.AddStandardTags(e.cfg)
 	return &e
 }
