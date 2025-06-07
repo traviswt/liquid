@@ -17,8 +17,11 @@ coverage: ## test the package, with coverage
 deps: ## list dependencies
 	@go list -f '{{join .Deps "\n"}}' ./... | grep -v `go list -f '{{.ImportPath}}'` | grep '\.' | sort | uniq
 
-format: ## list dependencies
-	@go fmt
+format: ## format files
+	@go fmt ./...
+
+vet: ## vet files
+	@go vet ./...
 
 generate: ## re-generate lexers and parser
 	go generate ./...
