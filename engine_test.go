@@ -3,13 +3,13 @@ package liquid
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/stretchr/testify/require"
 	"io"
 	"strconv"
 	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 var emptyBindings = map[string]any{}
@@ -55,7 +55,7 @@ func TestBasicEngine_ParseAndRenderString(t *testing.T) {
 		t.Run(strconv.Itoa(i+2), func(t *testing.T) {
 			out, err := engine.ParseAndRenderString(test.in, testBindings)
 			require.Errorf(t, err, test.in)
-			require.Equalf(t, "", out, test.in)
+			require.Emptyf(t, out, test.in)
 		})
 	}
 }
@@ -165,4 +165,25 @@ func TestEngine_ListFilters(t *testing.T) {
 func TestEngine_ListTags(t *testing.T) {
 	eng := NewEngine()
 	spew.Dump(eng.ListTags())
+}
+
+type MockTemplateStore struct{}
+
+func (tl *MockTemplateStore) ReadTemplate(filename string) ([]byte, error) {
+	template := []byte(fmt.Sprintf("Message Text: {{ message.Text }} from: %v.", filename))
+	return template, nil
+}
+
+func Test_template_store(t *testing.T) {
+	template := []byte(`{% include "template.liquid" %}`)
+	mockstore := &MockTemplateStore{}
+	params := map[string]any{
+		"message": testStruct{
+			Text: "filename",
+		},
+	}
+	engine := NewEngine()
+	engine.RegisterTemplateStore(mockstore)
+	out, _ := engine.ParseAndRenderString(string(template), params)
+	require.Equal(t, "Message Text: filename from: template.liquid.", out)
 }

@@ -3,3 +3,4 @@
 /liquid
 *.test
 .idea/
+.DS_Store*
