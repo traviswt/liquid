@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/itchyny/gojq"
+	"os"
 )
 
 func AddExtensionFilters(fd FilterDictionary) {
 	fd.AddFilter("base64_encode", base64Encode)
 	fd.AddFilter("base64_decode", base64Decode)
 	fd.AddFilter("jq", jq)
+	fd.AddFilter("load_file", loadFile)
 }
 
 func base64Encode(str string) (string, error) {
@@ -101,4 +103,12 @@ func toMap(v interface{}) (map[string]interface{}, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+func loadFile(file string) (string, error) {
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }

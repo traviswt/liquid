@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
 	"strconv"
@@ -186,4 +187,95 @@ func Test_template_store(t *testing.T) {
 	engine.RegisterTemplateStore(mockstore)
 	out, _ := engine.ParseAndRenderString(string(template), params)
 	require.Equal(t, "Message Text: filename from: template.liquid.", out)
+}
+
+func Test_Base64RoundTrip(t *testing.T) {
+	a := assert.New(t)
+	template := `
+
+<h1>{{ page.title | base64_encode }}</h1>
+<p>{{ description | base64_decode }}</p>
+
+`
+	bindings := map[string]any{
+		"page": map[string]string{
+			"title": "The Best Page Ever!",
+		},
+		"description": "dGhpcyBwYWdlIGlzIHRoZSBiZXN0IHBhZ2UgZXZlciE=",
+	}
+	mockstore := &MockTemplateStore{}
+	engine := NewEngine()
+	engine.RegisterTemplateStore(mockstore)
+	result, err := engine.ParseAndRenderString(template, bindings)
+	if !a.NoError(err) {
+		return
+	}
+	if !a.NotEmpty(result) {
+		return
+	}
+	spew.Dump(result)
+	if !a.Equal("\n\n<h1>VGhlIEJlc3QgUGFnZSBFdmVyIQ==</h1>\n<p>this page is the best page ever!</p>\n\n", result) {
+		return
+	}
+}
+
+func Test_Jq(t *testing.T) {
+	a := assert.New(t)
+	template := `
+
+<h1>{{ page.title | base64_encode }}</h1>
+<p>{{ description | base64_decode | jq: '.values.testb' }}</p>
+
+`
+	bindings := map[string]any{
+		"page": map[string]string{
+			"title": "The Best Page Ever!",
+		},
+		"description": "eyJ2YWx1ZXMiOnsidGVzdGEiOiJhbHBoYSIsInRlc3RiIjoiYmV0YSJ9fQ==",
+	}
+	mockstore := &MockTemplateStore{}
+	engine := NewEngine()
+	engine.RegisterTemplateStore(mockstore)
+	result, err := engine.ParseAndRenderString(template, bindings)
+	if !a.NoError(err) {
+		return
+	}
+	if !a.NotEmpty(result) {
+		return
+	}
+	if !a.Equal("\n\n<h1>VGhlIEJlc3QgUGFnZSBFdmVyIQ==</h1>\n<p>beta</p>\n\n", result) {
+		return
+	}
+	spew.Dump(result)
+}
+
+func Test_ReadFile(t *testing.T) {
+	a := assert.New(t)
+	template := `
+
+<h1>{{ page.title }}</h1>
+<p>{{ description | base64_decode | jq: '.values.testb' }}</p>
+<p>{{ './LICENSE' | load_file | base64_encode }}</p>
+
+`
+	bindings := map[string]any{
+		"page": map[string]string{
+			"title": "The Best Page Ever!",
+		},
+		"description": "eyJ2YWx1ZXMiOnsidGVzdGEiOiJhbHBoYSIsInRlc3RiIjoiYmV0YSJ9fQ==",
+	}
+	mockstore := &MockTemplateStore{}
+	engine := NewEngine()
+	engine.RegisterTemplateStore(mockstore)
+	result, err := engine.ParseAndRenderString(template, bindings)
+	if !a.NoError(err) {
+		return
+	}
+	if !a.NotEmpty(result) {
+		return
+	}
+	if !a.Equal("\n\n<h1>The Best Page Ever!</h1>\n<p>beta</p>\n<p>TUlUIExpY2Vuc2UKCkNvcHlyaWdodCAoYykgMjAxNyBPbGl2ZXIgU3RlZWxlCgpQZXJtaXNzaW9uIGlzIGhlcmVieSBncmFudGVkLCBmcmVlIG9mIGNoYXJnZSwgdG8gYW55IHBlcnNvbiBvYnRhaW5pbmcgYSBjb3B5Cm9mIHRoaXMgc29mdHdhcmUgYW5kIGFzc29jaWF0ZWQgZG9jdW1lbnRhdGlvbiBmaWxlcyAodGhlICJTb2Z0d2FyZSIpLCB0byBkZWFsCmluIHRoZSBTb2Z0d2FyZSB3aXRob3V0IHJlc3RyaWN0aW9uLCBpbmNsdWRpbmcgd2l0aG91dCBsaW1pdGF0aW9uIHRoZSByaWdodHMKdG8gdXNlLCBjb3B5LCBtb2RpZnksIG1lcmdlLCBwdWJsaXNoLCBkaXN0cmlidXRlLCBzdWJsaWNlbnNlLCBhbmQvb3Igc2VsbApjb3BpZXMgb2YgdGhlIFNvZnR3YXJlLCBhbmQgdG8gcGVybWl0IHBlcnNvbnMgdG8gd2hvbSB0aGUgU29mdHdhcmUgaXMKZnVybmlzaGVkIHRvIGRvIHNvLCBzdWJqZWN0IHRvIHRoZSBmb2xsb3dpbmcgY29uZGl0aW9uczoKClRoZSBhYm92ZSBjb3B5cmlnaHQgbm90aWNlIGFuZCB0aGlzIHBlcm1pc3Npb24gbm90aWNlIHNoYWxsIGJlIGluY2x1ZGVkIGluIGFsbApjb3BpZXMgb3Igc3Vic3RhbnRpYWwgcG9ydGlvbnMgb2YgdGhlIFNvZnR3YXJlLgoKVEhFIFNPRlRXQVJFIElTIFBST1ZJREVEICJBUyBJUyIsIFdJVEhPVVQgV0FSUkFOVFkgT0YgQU5ZIEtJTkQsIEVYUFJFU1MgT1IKSU1QTElFRCwgSU5DTFVESU5HIEJVVCBOT1QgTElNSVRFRCBUTyBUSEUgV0FSUkFOVElFUyBPRiBNRVJDSEFOVEFCSUxJVFksCkZJVE5FU1MgRk9SIEEgUEFSVElDVUxBUiBQVVJQT1NFIEFORCBOT05JTkZSSU5HRU1FTlQuIElOIE5PIEVWRU5UIFNIQUxMIFRIRQpBVVRIT1JTIE9SIENPUFlSSUdIVCBIT0xERVJTIEJFIExJQUJMRSBGT1IgQU5ZIENMQUlNLCBEQU1BR0VTIE9SIE9USEVSCkxJQUJJTElUWSwgV0hFVEhFUiBJTiBBTiBBQ1RJT04gT0YgQ09OVFJBQ1QsIFRPUlQgT1IgT1RIRVJXSVNFLCBBUklTSU5HIEZST00sCk9VVCBPRiBPUiBJTiBDT05ORUNUSU9OIFdJVEggVEhFIFNPRlRXQVJFIE9SIFRIRSBVU0UgT1IgT1RIRVIgREVBTElOR1MgSU4gVEhFClNPRlRXQVJFLgo=</p>\n\n", result) {
+		return
+	}
+	spew.Dump(result)
 }
