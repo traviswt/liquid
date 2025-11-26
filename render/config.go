@@ -9,9 +9,18 @@ import (
 type Config struct {
 	parser.Config
 	grammar
+
 	Cache           map[string][]byte
 	StrictVariables bool
 	TemplateStore   TemplateStore
+
+	escapeReplacer Replacer
+
+	// JekyllExtensions enables Jekyll-specific extensions to Liquid.
+	// When true, allows dot notation in assign tags (e.g., {% assign page.canonical_url = value %})
+	// This is not part of the Shopify Liquid standard but is used in Jekyll and Gojekyll.
+	// Default: false (strict Shopify Liquid compatibility)
+	JekyllExtensions bool
 }
 
 type grammar struct {
@@ -26,12 +35,18 @@ func NewConfig() Config {
 		tags:      map[string]TagCompiler{},
 		blockDefs: map[string]*blockSyntax{},
 	}
+
 	return Config{
 		Config:        parser.NewConfig(g),
 		grammar:       g,
 		Cache:         map[string][]byte{},
 		TemplateStore: &FileTemplateStore{},
 	}
+}
+
+func (c *Config) SetAutoEscapeReplacer(replacer Replacer) {
+	c.escapeReplacer = replacer
+	c.AddSafeFilter()
 }
 
 func (c Config) ListFilters() []string {

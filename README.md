@@ -17,6 +17,7 @@ generator.
   - [Installation](#installation)
   - [Usage](#usage)
     - [Command-Line tool](#command-line-tool)
+  - [Security](#security)
   - [Documentation](#documentation)
     - [Status](#status)
     - [Drops](#drops)
@@ -35,7 +36,7 @@ generator.
 
 ## Installation
 
-`go get gopkg.in/osteele/liquid.v1` # latest snapshot
+`go get github.com/osteele/liquid` # latest version
 
 `go get -u github.com/osteele/liquid` # development version
 
@@ -57,9 +58,46 @@ fmt.Println(out)
 
 See the [API documentation][godoc-url] for additional examples.
 
+### Jekyll Compatibility
+
+This library was originally developed for [Gojekyll](https://github.com/osteele/gojekyll), a Go port of Jekyll. 
+As such, it includes optional Jekyll-specific extensions that are not part of the Shopify Liquid specification.
+
+To enable Jekyll compatibility mode:
+
+```go
+engine := liquid.NewEngine()
+engine.EnableJekyllExtensions()
+```
+
+Jekyll extensions include:
+
+- **Dot notation in assign tags**: `{% assign page.canonical_url = "/about/" %}`
+  - In standard Liquid, this would be a syntax error
+  - With Jekyll extensions enabled, this creates or updates nested object properties
+  - Intermediate objects are created automatically if they don't exist
+
+Example:
+
+```go
+engine := liquid.NewEngine()
+engine.EnableJekyllExtensions()  // Enable Jekyll-specific features
+
+template := `{% assign page.meta.author = "John Doe" %}{{ page.meta.author }}`
+bindings := map[string]any{
+    "page": map[string]any{
+        "title": "Home",
+    },
+}
+out, _ := engine.ParseAndRenderString(template, bindings)
+// Output: John Doe
+```
+
+**Note**: Jekyll extensions are disabled by default to maintain compatibility with standard Shopify Liquid.
+
 ### Command-Line tool
 
-`go install gopkg.in/osteele/liquid.v0/cmd/liquid` installs a command-line
+`go install github.com/osteele/liquid/cmd/liquid@latest` installs a command-line
 `liquid` executable. This is intended to make it easier to create test cases for
 bug reports.
 
@@ -70,7 +108,60 @@ $ echo '{{ "Hello World" | downcase | split: " " | first | append: "!"}}' | liqu
 hello!
 ```
 
+## Security
+
+**Important**: If you plan to process untrusted templates (templates authored by users you don't fully trust), please review the [Security Policy](SECURITY.md) documentation.
+
+Key security considerations:
+
+- **Sandboxed Execution**: Templates cannot execute arbitrary code or access filesystem/network resources (by default)
+- **DoS Vulnerabilities**: The engine is vulnerable to denial-of-service attacks via infinite loops and memory exhaustion when processing untrusted templates
+- **Resource Limiting via FRender**: Use the `FRender` method with custom writers to implement timeouts and output size limits for untrusted templates
+- **Third-Party Extensions**: Custom filters and tags execute arbitrary Go code and should be carefully audited
+
+For detailed information about security guarantees, limitations, and production deployment recommendations, see [SECURITY.md](SECURITY.md). For implementing resource limits, see the [FRender documentation](./docs/FRender.md).
+
 ## Documentation
+
+This section provides a comprehensive guide to using and extending the Liquid template engine. Documentation is organized by topic:
+
+### Getting Started
+
+- **[Installation](#installation)** - Install the library and command-line tool
+- **[Usage](#usage)** - Quick start guide with examples
+- **[Command-Line Tool](#command-line-tool)** - Testing templates from the command line
+- **[API Documentation][godoc-url]** - Complete API reference on pkg.go.dev
+
+### Core Concepts
+
+- **[Value Types](#value-types)** - How Go values map to Liquid types
+- **[Drops](#drops)** - Custom types in templates
+- **[Status](#status)** - Feature compatibility with Shopify Liquid
+
+### Advanced Usage
+
+- **[Template Store](#template-store)** - Custom template storage (filesystem, database, etc.)
+  - See also: [Template Store Example](./docs/TemplateStoreExample.md)
+- **[Advanced Rendering](#advanced-rendering)** - FRender for streaming, timeouts, and size limits
+  - See also: [FRender Documentation](./docs/FRender.md)
+
+### Security & Performance
+
+- **[Security](#security)** - Resource limits and security considerations
+  - See also: [SECURITY.md](SECURITY.md)
+- **[FRender Documentation](./docs/FRender.md)** - Implementing resource limits in production
+
+### Internals
+
+- **[Loop Semantics](./docs/loop-semantics.md)** - Comparison with Ruby Liquid implementation
+- **[References](#references)** - Shopify Liquid documentation and resources
+
+### Contributing
+
+- **[CONTRIBUTING.md](./CONTRIBUTING.md)** - How to contribute to the project
+- **[Contributors](#contributors)** - List of project contributors
+
+---
 
 ### Status
 
@@ -165,12 +256,31 @@ The template store allows for usage of varying template storage implementations 
     ```
 1. Register with the engine
     ```go
-    engine.RegisterTemplateStore()
+    engine.RegisterTemplateStore(myTemplateStore)
     ```
 
 `FileTemplateStore` is the default mechanism for backwards compatibility.
 
 Refer to [example](./docs/TemplateStoreExample.md) for an example implementation.
+
+### Advanced Rendering
+
+#### Custom Writers (FRender)
+
+For advanced use cases like streaming to files, implementing timeouts, or limiting output size, use the `FRender` method to render directly to any `io.Writer`:
+
+```go
+var buf bytes.Buffer
+err := template.FRender(&buf, bindings)
+```
+
+This is particularly useful for:
+- Rendering large templates without buffering in memory
+- Implementing cancellation via context
+- Limiting output size from untrusted templates
+- Custom output transformation
+
+See the [FRender documentation](./docs/FRender.md) for detailed examples and security best practices.
 
 ### References
 
@@ -204,6 +314,28 @@ Thanks goes to these wonderful people ([emoji key](https://github.com/kentcdodds
   <tr>
     <td align="center"><a href="https://github.com/kke"><img src="https://avatars.githubusercontent.com/u/224971?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Kimmo Lehto</b></sub></a><br /><a href="https://github.com/osteele/liquid/commits?author=kke" title="Code">💻</a></td>
     <td align="center"><a href="https://vito.io/"><img src="https://avatars.githubusercontent.com/u/77198?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Victor "Vito" Gama</b></sub></a><br /><a href="https://github.com/osteele/liquid/commits?author=heyvito" title="Code">💻</a></td>
+    <td align="center"><a href="https://utpal.io/"><img src="https://avatars.githubusercontent.com/u/19898129?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Utpal Sarkar</b></sub></a><br /><a href="https://github.com/osteele/liquid/commits?author=uksarkar" title="Code">💻</a> <a href="https://github.com/osteele/liquid/commits?author=uksarkar" title="Tests">⚠️</a></td>
+    <td align="center"><a href="https://github.com/imiskolee"><img src="https://avatars.githubusercontent.com/u/1549948?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Misko Lee</b></sub></a><br /><a href="https://github.com/osteele/liquid/commits?author=imiskolee" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/aisbergg"><img src="https://avatars.githubusercontent.com/u/14318942?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Andre Lehmann</b></sub></a><br /><a href="https://github.com/osteele/liquid/commits?author=aisbergg" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/jamesog"><img src="https://avatars.githubusercontent.com/u/982184?v=4?s=100" width="100px;" alt=""/><br /><sub><b>James O'Gorman</b></sub></a><br /><a href="https://github.com/osteele/liquid/commits?author=jamesog" title="Code">💻</a> <a href="https://github.com/osteele/liquid/issues?q=author%3Ajamesog" title="Bug reports">🐛</a></td>
+    <td align="center"><a href="https://github.com/ofavre"><img src="https://avatars.githubusercontent.com/u/95129?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Olivier Favre</b></sub></a><br /><a href="https://github.com/osteele/liquid/commits?author=ofavre" title="Code">💻</a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/peteraba"><img src="https://avatars.githubusercontent.com/u/1675360?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Peter Aba</b></sub></a><br /><a href="https://github.com/osteele/liquid/commits?author=peteraba" title="Documentation">📖</a></td>
+    <td align="center"><a href="https://github.com/chrisghill"><img src="https://avatars.githubusercontent.com/u/15616541?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Christopher Hill</b></sub></a><br /><a href="https://github.com/osteele/liquid/commits?author=chrisghill" title="Code">💻</a> <a href="https://github.com/osteele/liquid/issues?q=author%3Achrisghill" title="Bug reports">🐛</a></td>
+    <td align="center"><a href="https://github.com/wttw"><img src="https://avatars.githubusercontent.com/u/389596?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Steve Atkins</b></sub></a><br /><a href="https://github.com/osteele/liquid/commits?author=wttw" title="Code">💻</a> <a href="https://github.com/osteele/liquid/issues?q=author%3Awttw" title="Bug reports">🐛</a></td>
+    <td align="center"><a href="https://github.com/prestonprice57"><img src="https://avatars.githubusercontent.com/u/10774823?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Preston Price</b></sub></a><br /><a href="https://github.com/osteele/liquid/commits?author=prestonprice57" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/jamslinger"><img src="https://avatars.githubusercontent.com/u/80337165?v=4?s=100" width="100px;" alt=""/><br /><sub><b>jamslinger</b></sub></a><br /><a href="https://github.com/osteele/liquid/commits?author=jamslinger" title="Code">💻</a> <a href="https://github.com/osteele/liquid/issues?q=author%3Ajamslinger" title="Bug reports">🐛</a></td>
+    <td align="center"><a href="https://github.com/deining"><img src="https://avatars.githubusercontent.com/u/18169566?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Andreas Deininger</b></sub></a><br /><a href="https://github.com/osteele/liquid/commits?author=deining" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/magiusdarrigo"><img src="https://avatars.githubusercontent.com/u/43056803?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Matteo Agius-D'Arrigo</b></sub></a><br /><a href="https://github.com/osteele/liquid/commits?author=magiusdarrigo" title="Code">💻</a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/codykrieger"><img src="https://avatars.githubusercontent.com/u/1311179?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Cody Krieger</b></sub></a><br /><a href="https://github.com/osteele/liquid/commits?author=codykrieger" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/stephanejais"><img src="https://avatars.githubusercontent.com/u/822431?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Stéphane JAIS</b></sub></a><br /><a href="https://github.com/osteele/liquid/commits?author=stephanejais" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/jam3sn"><img src="https://avatars.githubusercontent.com/u/7646700?v=4?s=100" width="100px;" alt=""/><br /><sub><b>James Newman</b></sub></a><br /><a href="https://github.com/osteele/liquid/commits?author=jam3sn" title="Code">💻</a> <a href="https://github.com/osteele/liquid/issues?q=author%3Ajam3sn" title="Bug reports">🐛</a></td>
+    <td align="center"><a href="https://github.com/chrisatbd"><img src="https://avatars.githubusercontent.com/u/180913248?v=4?s=100" width="100px;" alt=""/><br /><sub><b>chris</b></sub></a><br /><a href="https://github.com/osteele/liquid/commits?author=chrisatbd" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/dop251"><img src="https://avatars.githubusercontent.com/u/995021?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Dmitry Panov</b></sub></a><br /><a href="https://github.com/osteele/liquid/commits?author=dop251" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/GauthierHacout"><img src="https://avatars.githubusercontent.com/u/71611631?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Gauthier Hacout</b></sub></a><br /><a href="https://github.com/osteele/liquid/issues?q=author%3AGauthierHacout" title="Bug reports">🐛</a></td>
   </tr>
 </table>
 

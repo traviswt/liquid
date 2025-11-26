@@ -25,6 +25,86 @@ type FilterDictionary interface {
 	AddFilter(string, any)
 }
 
+// Helper functions for type-aware arithmetic operations
+
+// isIntegerType checks if a value is an integer type that can be safely
+// represented as int64 without overflow
+func isIntegerType(v any) bool {
+	switch val := v.(type) {
+	case int, int8, int16, int32, int64, uint8, uint16, uint32:
+		return true
+	case uint:
+		// Check if uint value fits in int64 range
+		return val <= math.MaxInt64
+	case uint64:
+		// Check if uint64 value fits in int64 range
+		return val <= math.MaxInt64
+	default:
+		return false
+	}
+}
+
+// toInt64 converts a value to int64
+// Caller must ensure value fits in int64 range by calling isIntegerType first
+func toInt64(v any) int64 {
+	switch val := v.(type) {
+	case int:
+		return int64(val)
+	case int8:
+		return int64(val)
+	case int16:
+		return int64(val)
+	case int32:
+		return int64(val)
+	case int64:
+		return val
+	case uint8:
+		return int64(val)
+	case uint16:
+		return int64(val)
+	case uint32:
+		return int64(val)
+	case uint:
+		return int64(val) //nolint:gosec // G115: Safe - isIntegerType verifies val <= math.MaxInt64
+	case uint64:
+		return int64(val) //nolint:gosec // G115: Safe - isIntegerType verifies val <= math.MaxInt64
+	default:
+		return 0
+	}
+}
+
+// toFloat64 converts a value to float64
+func toFloat64(v any) float64 {
+	switch val := v.(type) {
+	case int:
+		return float64(val)
+	case int8:
+		return float64(val)
+	case int16:
+		return float64(val)
+	case int32:
+		return float64(val)
+	case int64:
+		return float64(val)
+	case uint:
+		return float64(val)
+	case uint8:
+		return float64(val)
+	case uint16:
+		return float64(val)
+	case uint32:
+		return float64(val)
+	case uint64:
+		return float64(val)
+	case float32:
+		return float64(val)
+	case float64:
+		return val
+	default:
+		return 0
+	}
+}
+
 // AddStandardFilters defines the standard Liquid filters.
 func AddStandardFilters(fd FilterDictionary) { //nolint: gocyclo
 	// value filters
@@ -32,6 +112,7 @@ func AddStandardFilters(fd FilterDictionary) { //nolint: gocyclo
 		if value == nil || value == false || values.IsEmpty(value) {
 			value = defaultValue
 		}
+
 		return value
 	})
 	fd.AddFilter("json", func(a any) any {
@@ -46,6 +127,7 @@ func AddStandardFilters(fd FilterDictionary) { //nolint: gocyclo
 				result = append(result, item)
 			}
 		}
+
 		return
 	})
 	fd.AddFilter("concat", func(a, b []any) (result []any) {
@@ -59,6 +141,7 @@ func AddStandardFilters(fd FilterDictionary) { //nolint: gocyclo
 			value := values.ValueOf(obj)
 			result = append(result, value.PropertyValue(keyValue).Interface())
 		}
+
 		return result
 	})
 	fd.AddFilter("reverse", reverseFilter)
@@ -69,12 +152,14 @@ func AddStandardFilters(fd FilterDictionary) { //nolint: gocyclo
 		if len(a) == 0 {
 			return nil
 		}
+
 		return a[0]
 	})
 	fd.AddFilter("last", func(a []any) any {
 		if len(a) == 0 {
 			return nil
 		}
+
 		return a[len(a)-1]
 	})
 	fd.AddFilter("uniq", uniqFilter)
@@ -94,26 +179,44 @@ func AddStandardFilters(fd FilterDictionary) { //nolint: gocyclo
 		return int(math.Floor(a))
 	})
 	fd.AddFilter("modulo", math.Mod)
-	fd.AddFilter("minus", func(a, b float64) float64 {
-		return a - b
+	fd.AddFilter("minus", func(a, b any) any {
+		// If both operands are integers, perform integer arithmetic
+		if isIntegerType(a) && isIntegerType(b) {
+			return toInt64(a) - toInt64(b)
+		}
+		// Otherwise, perform float arithmetic
+		return toFloat64(a) - toFloat64(b)
 	})
-	fd.AddFilter("plus", func(a, b float64) float64 {
-		return a + b
+	fd.AddFilter("plus", func(a, b any) any {
+		// If both operands are integers, perform integer arithmetic
+		if isIntegerType(a) && isIntegerType(b) {
+			return toInt64(a) + toInt64(b)
+		}
+		// Otherwise, perform float arithmetic
+		return toFloat64(a) + toFloat64(b)
 	})
-	fd.AddFilter("times", func(a, b float64) float64 {
-		return a * b
+	fd.AddFilter("times", func(a, b any) any {
+		// If both operands are integers, perform integer arithmetic
+		if isIntegerType(a) && isIntegerType(b) {
+			return toInt64(a) * toInt64(b)
+		}
+		// Otherwise, perform float arithmetic
+		return toFloat64(a) * toFloat64(b)
 	})
 	fd.AddFilter("divided_by", func(a float64, b any) (any, error) {
 		divInt := func(a, b int64) (int64, error) {
 			if b == 0 {
 				return 0, errDivisionByZero
 			}
+
 			return a / b, nil
 		}
+
 		divFloat := func(a, b float64) (float64, error) {
 			if b == 0 {
 				return 0, errDivisionByZero
 			}
+
 			return a / b, nil
 		}
 		switch q := b.(type) {
@@ -144,6 +247,7 @@ func AddStandardFilters(fd FilterDictionary) { //nolint: gocyclo
 	fd.AddFilter("round", func(n float64, places func(int) int) float64 {
 		pl := places(0)
 		exp := math.Pow10(pl)
+
 		return math.Floor(n*exp+0.5) / exp
 	})
 
@@ -158,6 +262,7 @@ func AddStandardFilters(fd FilterDictionary) { //nolint: gocyclo
 		if len(s) == 0 {
 			return s
 		}
+
 		return strings.ToUpper(s[:1]) + s[1:]
 	})
 	fd.AddFilter("downcase", func(s, suffix string) string {
@@ -184,23 +289,55 @@ func AddStandardFilters(fd FilterDictionary) { //nolint: gocyclo
 		return strings.Replace(s, old, n, 1)
 	})
 	fd.AddFilter("sort_natural", sortNaturalFilter)
-	fd.AddFilter("slice", func(s string, start int, length func(int) int) string {
-		if len(s) == 0 {
-			return ""
+	fd.AddFilter("slice", func(v interface{}, start int, length func(int) int) interface{} {
+		// Are we in the []byte case? Transform []byte to string
+		if b, ok := v.([]byte); ok {
+			v = string(b)
 		}
-		ss := []rune(s)
-		n := length(1)
-		if start < 0 {
-			start = len(ss) + start
+		// Are we in the string case?
+		if s, ok := v.(string); ok {
+			// Work on runes, not chars
+			runes := []rune(s)
+			n := length(1)
+			if start < 0 {
+				start = len(runes) + start
+				if start < 0 {
+					start = 0
+				}
+			}
+			if start > len(runes) {
+				start = len(runes)
+			}
+			end := start + n
+			if end > len(runes) {
+				end = len(runes)
+			}
+			return string(runes[start:end])
 		}
-		if start < 0 {
-			return ""
+		// Are we in the slice case?
+		// A type test cannot suffice because []T and []U are different types, so we must use conversion.
+		var slice []interface{}
+		if sliceIface, err := values.Convert(v, reflect.TypeOf(slice)); err == nil {
+			var ok bool
+			if slice, ok = sliceIface.([]interface{}); ok {
+				n := length(1)
+				if start < 0 {
+					start = len(slice) + start
+					if start < 0 {
+						start = 0
+					}
+				}
+				if start > len(slice) {
+					start = len(slice)
+				}
+				end := start + n
+				if end > len(slice) {
+					end = len(slice)
+				}
+				return slice[start:end]
+			}
 		}
-		end := start + n
-		if end > len(ss) {
-			end = len(ss)
-		}
-		return string(ss[start:end])
+		return nil
 	})
 	fd.AddFilter("split", splitFilter)
 	fd.AddFilter("strip_html", func(s string) string {
@@ -222,16 +359,19 @@ func AddStandardFilters(fd FilterDictionary) { //nolint: gocyclo
 		el := ellipsis("...")
 		// runes aren't bytes; don't use slice
 		re := regexp.MustCompile(fmt.Sprintf(`^(.{%d})..{%d,}`, n-len(el), len(el)))
+
 		return re.ReplaceAllString(s, `$1`+el)
 	})
 	fd.AddFilter("truncatewords", func(s string, length func(int) int, ellipsis func(string) string) string {
 		el := ellipsis("...")
 		n := length(15)
 		re := regexp.MustCompile(fmt.Sprintf(`^(?:\s*\S+){%d}`, n))
+
 		m := re.FindString(s)
 		if m == "" {
 			return s
 		}
+
 		return m + el
 	})
 	fd.AddFilter("upcase", func(s, suffix string) string {
@@ -247,6 +387,7 @@ func AddStandardFilters(fd FilterDictionary) { //nolint: gocyclo
 		if err != nil {
 			return fmt.Sprintf("%#v", value)
 		}
+
 		return string(s)
 	})
 	fd.AddFilter("type", func(value any) string {
@@ -257,11 +398,13 @@ func AddStandardFilters(fd FilterDictionary) { //nolint: gocyclo
 func joinFilter(a []any, sep func(string) string) any {
 	ss := make([]string, 0, len(a))
 	s := sep(" ")
+
 	for _, v := range a {
 		if v != nil {
 			ss = append(ss, fmt.Sprint(v))
 		}
 	}
+
 	return strings.Join(ss, s)
 }
 
@@ -270,6 +413,7 @@ func reverseFilter(a []any) any {
 	for i, x := range a {
 		result[len(result)-1-i] = x
 	}
+
 	return result
 }
 
@@ -285,17 +429,21 @@ func splitFilter(s, sep string) any {
 	for len(result) > 0 && result[len(result)-1] == "" {
 		result = result[:len(result)-1]
 	}
+
 	return result
 }
 
 func uniqFilter(a []any) (result []any) {
 	seenMap := map[any]bool{}
+
 	seen := func(item any) bool {
 		if k := reflect.TypeOf(item).Kind(); k < reflect.Array || k == reflect.Ptr || k == reflect.UnsafePointer {
 			if seenMap[item] {
 				return true
 			}
+
 			seenMap[item] = true
+
 			return false
 		}
 		// the O(n^2) case:
@@ -304,6 +452,7 @@ func uniqFilter(a []any) (result []any) {
 				return true
 			}
 		}
+
 		return false
 	}
 	for _, item := range a {
@@ -311,6 +460,7 @@ func uniqFilter(a []any) (result []any) {
 			result = append(result, item)
 		}
 	}
+
 	return
 }
 
@@ -318,5 +468,6 @@ func eqItems(a, b any) bool {
 	if reflect.TypeOf(a).Comparable() && reflect.TypeOf(b).Comparable() {
 		return a == b
 	}
+
 	return reflect.DeepEqual(a, b)
 }
