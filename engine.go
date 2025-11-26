@@ -18,7 +18,8 @@ func NewEngine() *Engine {
 	e := Engine{render.NewConfig()}
 	filters.AddStandardFilters(&e.cfg)
 	filters.AddExtensionFilters(&e.cfg)
-	tags.AddStandardTags(e.cfg)
+	tags.AddStandardTags(&e.cfg)
+
 	return &e
 }
 
@@ -34,7 +35,9 @@ func (e *Engine) RegisterBlock(name string, td Renderer) {
 		if err != nil {
 			return err
 		}
+
 		_, err = io.WriteString(w, s)
+
 		return err
 	})
 }
@@ -65,7 +68,9 @@ func (e *Engine) RegisterTag(name string, td Renderer) {
 			if err != nil {
 				return err
 			}
+
 			_, err = io.WriteString(w, s)
+
 			return err
 		}, nil
 	})
@@ -78,6 +83,13 @@ func (e *Engine) RegisterTemplateStore(templateStore render.TemplateStore) {
 // StrictVariables causes the renderer to error when the template contains an undefined variable.
 func (e *Engine) StrictVariables() {
 	e.cfg.StrictVariables = true
+}
+
+// EnableJekyllExtensions enables Jekyll-specific extensions to Liquid.
+// This includes support for dot notation in assign tags (e.g., {% assign page.canonical_url = value %}).
+// Note: This is not part of the Shopify Liquid standard but is used in Jekyll and Gojekyll.
+func (e *Engine) EnableJekyllExtensions() {
+	e.cfg.JekyllExtensions = true
 }
 
 // ParseTemplate creates a new Template using the engine configuration.
@@ -105,6 +117,7 @@ func (e *Engine) ParseAndRender(source []byte, b Bindings) ([]byte, SourceError)
 	if err != nil {
 		return nil, err
 	}
+
 	return tpl.Render(b)
 }
 
@@ -114,6 +127,7 @@ func (e *Engine) ParseAndFRender(w io.Writer, source []byte, b Bindings) SourceE
 	if err != nil {
 		return err
 	}
+
 	return tpl.FRender(w, b)
 }
 
@@ -123,6 +137,7 @@ func (e *Engine) ParseAndRenderString(source string, b Bindings) (string, Source
 	if err != nil {
 		return "", err
 	}
+
 	return string(bs), nil
 }
 
@@ -146,8 +161,18 @@ func (e *Engine) ParseTemplateAndCache(source []byte, path string, line int) (*T
 	if err != nil {
 		return t, err
 	}
+
 	e.cfg.Cache[path] = source
+
 	return t, err
+}
+
+// SetAutoEscapeReplacer enables auto-escape functionality where the output of expression blocks ({{ ... }}) is
+// passed though a render.Replacer during rendering, unless it's been marked as safe by applying the 'safe' filter.
+// This filter is automatically registered when this method is called. The filter must be applied last.
+// A replacer is provided for escaping HTML (see render.HtmlEscaper).
+func (e *Engine) SetAutoEscapeReplacer(replacer render.Replacer) {
+	e.cfg.SetAutoEscapeReplacer(replacer)
 }
 
 func (e *Engine) ListFilters() []string {

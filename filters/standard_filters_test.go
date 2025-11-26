@@ -2,6 +2,7 @@ package filters
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -112,7 +113,24 @@ Liquid" | slice: 0`, "L"},
 Liquid" | slice: 2, 4`, "quid"},
 	{`"Liquid" | slice: -3, 2`, "ui"},
 	{`"" | slice: 1`, ""},
-	{`"Liquid" | slice: -7`, ""},
+	{`"Liquid" | slice: 2, 100`, "quid"},
+	{`"Liquid" | slice: 100`, ""},
+	{`"Liquid" | slice: 100, 200`, ""},
+	{`"Liquid" | slice: -100`, "L"},
+	{`"Liquid" | slice: -100, 200`, "Liquid"},
+	{`"白鵬翔" | slice: 0`, "白"},
+	{`"白鵬翔" | slice: 1`, "鵬"},
+	{`"白鵬翔" | slice: 2`, "翔"},
+	{`"白鵬翔" | slice: 0, 2`, "白鵬"},
+	{`"白鵬翔" | slice: 1, 2`, "鵬翔"},
+	{`"白鵬翔" | slice: 100, 200`, ""},
+	{`"白鵬翔" | slice: -100`, "白"},
+	{`"白鵬翔" | slice: -100, 200`, "白鵬翔"},
+	{`">` + strings.Repeat(".", 10000) + `<" | slice: 1, 10000`, strings.Repeat(".", 10000)},
+	{`"a,b,c" | split: "," | slice: -1 | join`, "c"},
+	{`"a,b,c" | split: "," | slice: 1, 1 | join`, "b"},
+	{`"a,b,c" | split: "," | slice: 0, 2 | join`, "a b"},
+	{`"a,b,c" | split: "," | slice: 1, 2 | join`, "b c"},
 
 	{`"a/b/c" | split: '/' | join: '-'`, "a-b-c"},
 	{`"a/b/" | split: '/' | join: '-'`, "a-b"},
@@ -169,16 +187,33 @@ Liquid" | slice: 2, 4`, "quid"},
 	{`2.0 | floor`, 2},
 	{`183.357 | floor`, 183},
 
-	{`4 | plus: 2`, 6.0},
+	{`4 | plus: 2`, int64(6)},
+	{`4 | plus: 2.0`, 6.0},
+	{`4.0 | plus: 2`, 6.0},
 	{`183.357 | plus: 12`, 195.357},
 
-	{`4 | minus: 2`, 2.0},
-	{`16 | minus: 4`, 12.0},
+	{`4 | minus: 2`, int64(2)},
+	{`4 | minus: 2.0`, 2.0},
+	{`16 | minus: 4`, int64(12)},
 	{`183.357 | minus: 12`, 171.357},
 
-	{`3 | times: 2`, 6.0},
-	{`24 | times: 7`, 168.0},
+	{`3 | times: 2`, int64(6)},
+	{`3 | times: 2.0`, 6.0},
+	{`24 | times: 7`, int64(168)},
 	{`183.357 | times: 12`, 2200.284},
+
+	// Test large integers (issue #109 - should not use scientific notation)
+	{`1743096453 | minus: 7`, int64(1743096446)},
+	{`1743096453 | plus: 7`, int64(1743096460)},
+	{`1000000 | times: 1000`, int64(1000000000)},
+
+	// Test uint types - should preserve integer type when in int64 range
+	{`small_uint | plus: 1`, int64(1001)},
+	{`small_uint | minus: 1`, int64(999)},
+	{`small_uint | times: 2`, int64(2000)},
+	{`small_uint64 | plus: 100`, int64(1100)},
+	{`small_uint64 | minus: 100`, int64(900)},
+	{`small_uint64 | times: 3`, int64(3000)},
 
 	{`3 | modulo: 2`, 1.0},
 	{`24 | modulo: 7`, 3.0},
@@ -238,6 +273,10 @@ var filterTestBindings = map[string]any{
 	"dup_ints":             []int{1, 2, 1, 3},
 	"dup_strings":          []string{"one", "two", "one", "three"},
 
+	// Test uint types in arithmetic operations (issue #109)
+	"small_uint":   uint(1000),
+	"small_uint64": uint64(1000),
+
 	// for examples from liquid docs
 	"animals": []string{"zebra", "octopus", "giraffe", "Sally Snake"},
 	"fruits":  []string{"apples", "oranges", "peaches", "plums"},
@@ -273,6 +312,7 @@ func TestFilters(t *testing.T) {
 		m2 = map[string]any{"name": "m2"}
 		m3 = map[string]any{"name": "m3"}
 	)
+
 	filterTestBindings["dup_maps"] = []any{m1, m2, m1, m3}
 
 	cfg := expressions.NewConfig()
@@ -300,5 +340,6 @@ func timeMustParse(s string) time.Time {
 	if err != nil {
 		panic(err)
 	}
+
 	return t
 }

@@ -41,10 +41,18 @@ var iterationTests = []struct{ in, expected string }{
 	{`{% for a in array limit: 0 %}{{ a }}.{% else %}ELSE{% endfor %}`, "ELSE"},
 	{`{% for a in array offset: 3 %}{{ a }}.{% endfor %}`, ""},
 	{`{% for a in array offset: 10 %}{{ a }}.{% endfor %}`, ""},
-	// TODO investigate how these combine; does it depend on the order?
-	// {`{% for a in array reversed offset:1 %}{{ a }}.{% endfor %}`, "second.first."},
-	// {`{% for a in array limit:1 offset:1 %}{{ a }}.{% endfor %}`, "second."},
-	// {`{% for a in array reversed limit:1 offset:1 %}{{ a }}.{% endfor %}`, "second."},
+	// Combining multiple modifiers (issue #6)
+	// Note: In this implementation, modifiers are always applied in the order: reversed -> offset -> limit
+	// The order they appear in the template syntax does not matter.
+	// This differs from Ruby Shopify Liquid where syntax order matters and reversed only works when placed first.
+	{`{% for a in array reversed offset:1 %}{{ a }}.{% endfor %}`, "second.first."},
+	{`{% for a in array offset:1 reversed %}{{ a }}.{% endfor %}`, "second.first."}, // same result - syntax order doesn't matter
+	{`{% for a in array limit:1 offset:1 %}{{ a }}.{% endfor %}`, "second."},
+	{`{% for a in array offset:1 limit:1 %}{{ a }}.{% endfor %}`, "second."}, // same result
+	{`{% for a in array reversed limit:1 offset:1 %}{{ a }}.{% endfor %}`, "second."},
+	{`{% for a in array reversed offset:1 limit:1 %}{{ a }}.{% endfor %}`, "second."}, // same result
+	{`{% for a in array limit:1 offset:1 reversed %}{{ a }}.{% endfor %}`, "second."}, // same result
+	{`{% for a in array offset:1 limit:1 reversed %}{{ a }}.{% endfor %}`, "second."}, // same result
 
 	// loop variables
 	{`{% for a in array %}{{ forloop.first }}.{% endfor %}`, "true.false.false."},
@@ -160,20 +168,25 @@ var iterationTestBindings = map[string]any{
 
 func TestIterationTags(t *testing.T) {
 	config := render.NewConfig()
-	AddStandardTags(config)
+	AddStandardTags(&config)
+
 	for i, test := range iterationTests {
 		t.Run(fmt.Sprintf("%02d", i+1), func(t *testing.T) {
 			root, err := config.Compile(test.in, parser.SourceLoc{})
 			require.NoErrorf(t, err, test.in)
+
 			buf := new(bytes.Buffer)
 			err = render.Render(root, buf, iterationTestBindings, config)
 			require.NoErrorf(t, err, test.in)
+
 			actual := buf.String()
+
 			if strings.Contains(test.in, "{% tablerow") {
 				replaceWS := regexp.MustCompile(`\n\s*`).ReplaceAllString
 				actual = replaceWS(actual, "")
 				test.expected = replaceWS(test.expected, "")
 			}
+
 			require.Equalf(t, test.expected, actual, test.in)
 		})
 	}
@@ -181,7 +194,7 @@ func TestIterationTags(t *testing.T) {
 
 func TestIterationTags_errors(t *testing.T) {
 	cfg := render.NewConfig()
-	AddStandardTags(cfg)
+	AddStandardTags(&cfg)
 
 	for i, test := range iterationSyntaxErrorTests {
 		t.Run(fmt.Sprintf("%02d", i+1), func(t *testing.T) {
