@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/itchyny/gojq"
 	"os"
+	"sort"
 )
 
 func AddExtensionFilters(fd FilterDictionary) {
@@ -13,6 +14,16 @@ func AddExtensionFilters(fd FilterDictionary) {
 	fd.AddFilter("base64_decode", base64Decode)
 	fd.AddFilter("jq", jq)
 	fd.AddFilter("load_file", loadFile)
+	fd.AddFilter("keys", keys)
+}
+
+func keys(m map[string]string) ([]string, error) {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys, nil
 }
 
 func base64Encode(str string) (string, error) {
